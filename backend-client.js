@@ -7,10 +7,7 @@
   const TO_DB = { confirmed:'confirmed', pending:'pending', completed:'completed', cancelled:'canceled', canceled:'canceled', absent:'no_show' };
   const FROM_DB = { confirmed:'confirmed', pending:'pending', completed:'completed', canceled:'cancelled', no_show:'absent' };
   function mapService(s) { return { id:s.id, name:s.name, description:s.description||'', price_cents:Math.round(Number(s.price)*100), duration_min:s.duration_minutes||60, return_days:21 }; }
-  function mapAppointment(a, names) {
-    const dt = new Date(a.start_time);
-    return { id:a.id, client_name:a.client_name, service_id:a.service_id, service_name:names?.[a.service_id]||'', date:dt.toISOString().slice(0,10), time:dt.toTimeString().slice(0,5), value_cents:Math.round(Number(a.total||0)*100), status:FROM_DB[a.status]||a.status };
-  }
+  function mapAppointment(a, names) { const dt=new Date(a.start_time); return { id:a.id, client_name:a.client_name, service_id:a.service_id, service_name:names?.[a.service_id]||'', date:dt.toISOString().slice(0,10), time:dt.toTimeString().slice(0,5), value_cents:Math.round(Number(a.total||0)*100), status:FROM_DB[a.status]||a.status }; }
   async function ensureClient(user) {
     const { data } = await sb().from('clients').select('*').eq('user_id', user.id).maybeSingle();
     if (data) return data;
@@ -18,9 +15,7 @@
     return c;
   }
   window.BeautyAPI = {
-    isConnected: () => true,
-    getToken: () => null,
-    setToken: () => {},
+    isConnected: () => true, getToken: () => null, setToken: () => {},
 
     async login(email, password) {
       const { data, error } = await sb().auth.signInWithPassword({ email, password });
@@ -36,55 +31,26 @@
       return { token:data.session?.access_token||'', user:{ id:data.user.id, email:data.user.email, name:p.name, role:'client' } };
     },
     async logout() { await sb().auth.signOut(); },
-    async me() {
-      const { data } = await sb().auth.getUser();
-      if (!data?.user) return null;
-      const c = await ensureClient(data.user);
-      return { user:{ id:data.user.id, email:data.user.email, name:c.name, phone:c.phone } };
-    },
-    async updateProfile(p) {
-      const { data } = await sb().auth.getUser();
-      await sb().from('clients').update({ name:p.name, phone:p.phone }).eq('user_id', data.user.id);
-      return { user:{ id:data.user.id, email:data.user.email, name:p.name, phone:p.phone } };
-    },
+    async me() { const { data } = await sb().auth.getUser(); if (!data?.user) return null; const c = await ensureClient(data.user); return { user:{ id:data.user.id, email:data.user.email, name:c.name, phone:c.phone } }; },
+    async updateProfile(p) { const { data } = await sb().auth.getUser(); await sb().from('clients').update({ name:p.name, phone:p.phone }).eq('user_id', data.user.id); return { user:{ id:data.user.id, email:data.user.email, name:p.name, phone:p.phone } }; },
     async deleteAccount() { return { ok:true }; },
 
-    async services() {
-      const { data } = await sb().from('services').select('*').eq('is_active', true).order('name');
-      return (data||[]).map(mapService);
-    },
-    async createService(p) {
-      const { data, error } = await sb().from('services').insert({ name:p.name, description:p.description||null, duration_minutes:p.duration_min||60, price:(p.price_cents||0)/100, is_active:true }).select().single();
-      if (error) throw new Error(error.message);
-      return data;
-    },
-    async updateService(id, p) {
-      const { error } = await sb().from('services').update({ name:p.name, description:p.description||null, duration_minutes:p.duration_min||60, price:(p.price_cents||0)/100, is_active:p.active!==false }).eq('id', id);
-      if (error) throw new Error(error.message);
-      return { ok:true };
-    },
-    async deleteService(id) {
-      const { error } = await sb().from('services').update({ is_active:false }).eq('id', id);
-      if (error) throw new Error(error.message);
-      return { ok:true };
-    },
+    async services() { const { data } = await sb().from('services').select('*').eq('is_active', true).order('name'); return (data||[]).map(mapService); },
+    async createService(p) { const { data, error } = await sb().from('services').insert({ name:p.name, description:p.description||null, duration_minutes:p.duration_min||60, price:(p.price_cents||0)/100, is_active:true }).select().single(); if (error) throw new Error(error.message); return data; },
+    async updateService(id, p) { const { error } = await sb().from('services').update({ name:p.name, description:p.description||null, duration_minutes:p.duration_min||60, price:(p.price_cents||0)/100, is_active:p.active!==false }).eq('id', id); if (error) throw new Error(error.message); return { ok:true }; },
+    async deleteService(id) { const { error } = await sb().from('services').update({ is_active:false }).eq('id', id); if (error) throw new Error(error.message); return { ok:true }; },
 
-    async professionals() {
-      const { data } = await sb().from('professionals').select('*');
-      return (data||[]).map(p => ({ id:p.id, name:p.name, role:'Profissional', bio:p.bio||'' }));
-    },
+    async professionals() { const { data } = await sb().from('professionals').select('*'); return (data||[]).map(p => ({ id:p.id, name:p.name, role:'Profissional', bio:p.bio||'' })); },
 
     async appointments() {
-      const { data:u } = await sb().auth.getUser();
-      if (!u?.user) return [];
+      const { data:u } = await sb().auth.getUser(); if (!u?.user) return [];
       const { data:svcs } = await sb().from('services').select('id,name');
       const names = {}; (svcs||[]).forEach(s => names[s.id] = s.name);
       const { data } = await sb().from('appointments').select('*').eq('client_id', u.user.id).order('start_time', { ascending:false });
       return (data||[]).map(a => mapAppointment(a, names));
     },
     async createAppointment(p) {
-      const { data:u } = await sb().auth.getUser();
-      if (!u?.user) throw new Error('Faça login');
+      const { data:u } = await sb().auth.getUser(); if (!u?.user) throw new Error('Faça login');
       const { data:svc } = await sb().from('services').select('*').eq('id', p.service_id).single();
       const start = new Date(`${p.date}T${p.time}:00`);
       const end = new Date(start.getTime() + (svc.duration_minutes||60)*60000);
@@ -93,19 +59,8 @@
       if (error) throw new Error(error.message);
       return data;
     },
-    async updateAppointment(id, status) {
-      const { error } = await sb().from('appointments').update({ status:TO_DB[status]||status }).eq('id', id);
-      if (error) throw new Error(error.message);
-      return { ok:true };
-    },
-    async rescheduleAppointment(id, date, time) {
-      const { data:a } = await sb().from('appointments').select('*, services(duration_minutes)').eq('id', id).single();
-      const dur = a?.services?.duration_minutes || 60;
-      const start = new Date(`${date}T${time}:00`);
-      const end = new Date(start.getTime() + dur*60000);
-      await sb().from('appointments').update({ start_time:start.toISOString(), end_time:end.toISOString() }).eq('id', id);
-      return { ok:true };
-    },
+    async updateAppointment(id, status) { const { error } = await sb().from('appointments').update({ status:TO_DB[status]||status }).eq('id', id); if (error) throw new Error(error.message); return { ok:true }; },
+    async rescheduleAppointment(id, date, time) { const { data:a } = await sb().from('appointments').select('*, services(duration_minutes)').eq('id', id).single(); const dur = a?.services?.duration_minutes || 60; const start = new Date(`${date}T${time}:00`); const end = new Date(start.getTime() + dur*60000); await sb().from('appointments').update({ start_time:start.toISOString(), end_time:end.toISOString() }).eq('id', id); return { ok:true }; },
     async correctAppointment(id, p) { return this.updateAppointment(id, p.status); },
     async paySandbox() { return { ok:true }; },
     async addAppointmentItem() { return { ok:true }; },
@@ -113,66 +68,63 @@
     async availability(date, serviceId) {
       const { data:svc } = await sb().from('services').select('duration_minutes').eq('id', serviceId).single();
       const dur = svc?.duration_minutes || 60;
-      const start = new Date(`${date}T08:00:00`);
-      const end = new Date(`${date}T20:00:00`);
-      const { data:busy } = await sb().from('appointments').select('start_time,end_time').gte('start_time', start.toISOString()).lt('start_time', end.toISOString()).in('status', ['pending','confirmed']);
+      // Verifica se a data está bloqueada
+      const { data:blk } = await sb().from('date_blocks').select('id').eq('block_date', date).maybeSingle();
+      if (blk) return { date, duration_min:dur, slots:[] };
+      // Pega faixas do dia da semana
+      const wd = new Date(`${date}T12:00:00`).getDay();
+      const { data:ranges } = await sb().from('schedules').select('open_time,close_time').eq('weekday', wd);
+      if (!ranges || !ranges.length) return { date, duration_min:dur, slots:[] };
+      const { data:busy } = await sb().from('appointments').select('start_time,end_time').gte('start_time', `${date}T00:00:00`).lte('start_time', `${date}T23:59:59`).in('status', ['pending','confirmed']);
       const slots = [];
-      for (let m = 8*60; m + dur <= 20*60; m += 30) {
-        const s = new Date(`${date}T00:00:00`); s.setMinutes(m);
-        const e = new Date(s.getTime() + dur*60000);
-        const conflict = (busy||[]).some(b => { const bs = new Date(b.start_time), be = new Date(b.end_time); return s < be && e > bs; });
-        if (!conflict) slots.push({ time:s.toTimeString().slice(0,5), available:true });
+      const toMin = s => { const [h,m]=s.split(':').map(Number); return h*60+m; };
+      for (const r of ranges) {
+        const startM = toMin(r.open_time), endM = toMin(r.close_time);
+        for (let m = startM; m + dur <= endM; m += 30) {
+          const s = new Date(`${date}T00:00:00`); s.setMinutes(m);
+          const e = new Date(s.getTime() + dur*60000);
+          const conflict = (busy||[]).some(b => { const bs=new Date(b.start_time), be=new Date(b.end_time); return s<be && e>bs; });
+          if (!conflict) slots.push({ time:s.toTimeString().slice(0,5), available:true });
+        }
       }
       return { date, duration_min:dur, slots };
     },
 
-    async clients(search) {
-      let q = sb().from('clients').select('*');
-      if (search) q = q.or(`name.ilike.%${search}%,email.ilike.%${search}%,phone.ilike.%${search}%`);
-      const { data } = await q;
-      return data||[];
-    },
-    async createClient(p) {
-      const { error } = await sb().from('clients').insert({ name:p.name, email:p.email, phone:p.phone||null, birth_date:p.birth_date||null });
-      if (error) throw new Error(error.message);
-      return { temporary_password:'temp123' };
-    },
-    async updateClientProfile(id, p) {
-      const { error } = await sb().from('clients').update({ blocked:p.blocked }).eq('id', id);
-      if (error) throw new Error(error.message);
+    async hours() { const { data } = await sb().from('schedules').select('*').order('weekday').order('open_time'); return (data||[]).map(h => ({ id:h.id, weekday:h.weekday, open_time:h.open_time, close_time:h.close_time })); },
+    async saveDay(weekday, ranges) {
+      await sb().from('schedules').delete().eq('weekday', weekday);
+      if (ranges && ranges.length) {
+        const rows = ranges.map(r => ({ weekday, active:true, open_time:r.open_time, close_time:r.close_time }));
+        const { error } = await sb().from('schedules').insert(rows);
+        if (error) throw new Error(error.message);
+      }
       return { ok:true };
     },
-    async exportClients() {
-      const { data } = await sb().from('clients').select('*');
-      const lines = ['Nome,Email,Telefone'];
-      (data||[]).forEach(c => lines.push(`${c.name||''},${c.email||''},${c.phone||''}`));
-      return lines.join('\n');
+    async copyDay(from, to) {
+      const { data:src } = await sb().from('schedules').select('open_time,close_time').eq('weekday', from);
+      await sb().from('schedules').delete().in('weekday', to);
+      if (src && src.length) {
+        const rows = [];
+        for (const wd of to) for (const r of src) rows.push({ weekday:wd, active:true, open_time:r.open_time, close_time:r.close_time });
+        if (rows.length) await sb().from('schedules').insert(rows);
+      }
+      return { ok:true };
     },
+    async blocks() { const { data } = await sb().from('date_blocks').select('*').order('block_date'); return (data||[]).map(b => ({ id:b.id, date:b.block_date, reason:b.reason })); },
+    async createBlock(p) { const { error } = await sb().from('date_blocks').insert({ block_date:p.date, reason:p.reason||null }); if (error) throw new Error(error.message); return { ok:true }; },
+    async deleteBlock(id) { const { error } = await sb().from('date_blocks').delete().eq('id', id); if (error) throw new Error(error.message); return { ok:true }; },
 
-    async portfolio() {
-      const { data } = await sb().from('portfolio').select('*').eq('active', true);
-      return data||[];
-    },
-    async createPortfolio(p) {
-      const { error } = await sb().from('portfolio').insert({ title:p.title, technique:p.technique, category:p.category, shape:p.shape, length:p.length, colors:p.colors, nail_art:p.nail_art, price_cents:p.price_cents||0, duration_min:p.duration_min||60, photo_url:p.photo_url||null, active:true });
-      if (error) throw new Error(error.message);
-      return { ok:true };
-    },
-    async deletePortfolio(id) {
-      const { error } = await sb().from('portfolio').update({ active:false }).eq('id', id);
-      if (error) throw new Error(error.message);
-      return { ok:true };
-    },
+    async clients(search) { let q = sb().from('clients').select('*'); if (search) q = q.or(`name.ilike.%${search}%,email.ilike.%${search}%,phone.ilike.%${search}%`); const { data } = await q; return data||[]; },
+    async createClient(p) { const { error } = await sb().from('clients').insert({ name:p.name, email:p.email, phone:p.phone||null, birth_date:p.birth_date||null }); if (error) throw new Error(error.message); return { temporary_password:'temp123' }; },
+    async updateClientProfile(id, p) { const { error } = await sb().from('clients').update({ blocked:p.blocked }).eq('id', id); if (error) throw new Error(error.message); return { ok:true }; },
+    async exportClients() { const { data } = await sb().from('clients').select('*'); const lines=['Nome,Email,Telefone']; (data||[]).forEach(c => lines.push(`${c.name||''},${c.email||''},${c.phone||''}`)); return lines.join('\n'); },
+
+    async portfolio() { const { data } = await sb().from('portfolio').select('*').eq('active', true); return data||[]; },
+    async createPortfolio(p) { const { error } = await sb().from('portfolio').insert({ title:p.title, technique:p.technique, category:p.category, shape:p.shape, length:p.length, colors:p.colors, nail_art:p.nail_art, price_cents:p.price_cents||0, duration_min:p.duration_min||60, photo_url:p.photo_url||null, active:true }); if (error) throw new Error(error.message); return { ok:true }; },
+    async deletePortfolio(id) { const { error } = await sb().from('portfolio').update({ active:false }).eq('id', id); if (error) throw new Error(error.message); return { ok:true }; },
 
     async notifications() { return []; },
     async markNotificationRead() { return { ok:true }; },
-    async hours() { return []; },
-async updateHours() { return { ok:true }; },
-async blocks() { return []; },
-    async updateHours() { return { ok:true }; },
-    async blocks() { return []; },
-    async createBlock() { return { ok:true }; },
-    async deleteBlock() { return { ok:true }; },
     async businessProfile() { return { name:'Studio Jozyhely Rodrigues', slug:'studiojozynails', active:true }; },
     async updateBusinessProfile(p) { return p; },
     async documents() { return []; },
@@ -199,11 +151,7 @@ async blocks() { return []; },
     async reportSummary() { return { income_cents:0, expense_cents:0, balance_cents:0, appointments:0 }; },
     async returnReminders() { return []; },
 
-    async requestPasswordReset(email) {
-      const { error } = await sb().auth.resetPasswordForEmail(email);
-      if (error) throw new Error(error.message);
-      return { message:'Se houver uma conta, enviaremos instruções.' };
-    },
+    async requestPasswordReset(email) { const { error } = await sb().auth.resetPasswordForEmail(email); if (error) throw new Error(error.message); return { message:'Se houver uma conta, enviaremos instruções.' }; },
     async resetPassword() { return { ok:true }; }
   };
 })();
