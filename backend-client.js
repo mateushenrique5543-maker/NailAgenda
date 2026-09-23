@@ -73,10 +73,38 @@
       return { user:{ id:data.user.id, email:data.user.email, name:p.name, phone:p.phone } };
     },
 
-    async services() {
-      const { data } = await sb().from('services').select('*').eq('is_active', true).order('name');
-      return (data||[]).map(mapService);
-    },
+    async createService(p) {
+  const { data, error } = await sb().from('services').insert({
+    name: p.name,
+    description: p.description || null,
+    duration_minutes: p.duration_min || 60,
+    price: (p.price_cents || 0) / 100,
+    is_active: true
+  }).select().single();
+  if (error) throw new Error(error.message);
+  return data;
+},
+async updateService(id, p) {
+  const { error } = await sb().from('services').update({
+    name: p.name,
+    description: p.description || null,
+    duration_minutes: p.duration_min || 60,
+    price: (p.price_cents || 0) / 100,
+    is_active: p.active !== false
+  }).eq('id', id);
+  if (error) throw new Error(error.message);
+  return { ok: true };
+},
+async deleteService(id) {
+  const { error } = await sb().from('services').update({ is_active: false }).eq('id', id);
+  if (error) throw new Error(error.message);
+  return { ok: true };
+},
+async updateClientProfile(id, p) {
+  const { error } = await sb().from('clients').update({ blocked: p.blocked }).eq('id', id);
+  if (error) throw new Error(error.message);
+  return { ok: true };
+},
     async professionals() {
       const { data } = await sb().from('professionals').select('*');
       return (data||[]).map(p => ({ id:p.id, name:p.name, role:'Profissional', bio:p.bio||'' }));
