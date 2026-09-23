@@ -167,6 +167,8 @@
     async notifications() { return []; },
     async markNotificationRead() { return { ok:true }; },
     async hours() { return []; },
+async updateHours() { return { ok:true }; },
+async blocks() { return []; },
     async updateHours() { return { ok:true }; },
     async blocks() { return []; },
     async createBlock() { return { ok:true }; },
